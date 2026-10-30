@@ -19,11 +19,39 @@ class _StudentDashboardState extends State<StudentDashboard> {
   int _currentIndex = 0;
   String _fullName = 'Đang tải...';
   String _email = 'Đang tải...';
+  
+  List<dynamic> _attendanceHistory = [];
+  bool _isLoadingHistory = true;
 
   @override
   void initState() {
     super.initState();
     _fetchProfile();
+    _fetchHistory();
+  }
+
+  Future<void> _fetchHistory() async {
+    setState(() => _isLoadingHistory = true);
+    try {
+      final response = await ApiService.get(ApiConstants.myHistory);
+      if (response.statusCode == 200) {
+        if (mounted) {
+          setState(() {
+            _attendanceHistory = jsonDecode(response.body);
+            _isLoadingHistory = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _isLoadingHistory = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingHistory = false;
+          _attendanceHistory = []; // Không dùng mock nữa
+        });
+      }
+    }
   }
 
   Future<void> _fetchProfile() async {
@@ -47,13 +75,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
       }
     }
   }
-
-  final List<Map<String, dynamic>> _attendanceHistory = [
-    {'subject': 'Lập trình Di động ', 'date': '29/10/2026 08:05', 'status': 'Hợp lệ', 'distance': '12m'},
-    {'subject': 'Quản lý Dự án CNTT', 'date': '28/10/2026 13:30', 'status': 'Hợp lệ', 'distance': '24m'},
-    {'subject': 'CSDL Nâng cao', 'date': '26/10/2026 07:45', 'status': 'Trễ', 'distance': '15m'},
-    {'subject': 'An toàn thông tin', 'date': '24/10/2026 09:10', 'status': 'Hợp lệ', 'distance': '8m'},
-  ];
 
   // Tab 1: Quét QR & Điểm danh
   Widget _buildCheckInTab() {
@@ -125,12 +146,39 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   // Tab 2: Lịch sử điểm danh
   Widget _buildHistoryTab() {
+    if (_isLoadingHistory) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_attendanceHistory.isEmpty) {
+      return const Center(child: Text('Chưa có lịch sử điểm danh'));
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: _attendanceHistory.length,
       itemBuilder: (context, index) {
         final item = _attendanceHistory[index];
-        final bool isValid = item['status'] == 'Hợp lệ';
+        final String statusRaw = item['status'] ?? '';
+        String statusText = 'Không rõ';
+        bool isValid = false;
+        
+        if (statusRaw == 'Present') {
+          statusText = 'Hợp lệ';
+          isValid = true;
+        } else if (statusRaw == 'Late') {
+          statusText = 'Trễ';
+          isValid = false;
+        } else if (statusRaw == 'Absent') {
+          statusText = 'Vắng mặt';
+          isValid = false;
+        }
+
+        // Format DateTime từ API (VD: 2026-09-02T09:05:00Z)
+        String dateFormatted = item['markedAt'] ?? '';
+        try {
+          final DateTime dt = DateTime.parse(item['markedAt']).toLocal();
+          dateFormatted = '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+        } catch (_) {}
 
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 6),
@@ -140,10 +188,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
               backgroundColor: isValid ? Colors.green.shade50 : Colors.orange.shade50,
               child: Icon(isValid ? Icons.check_circle : Icons.access_time_filled, color: isValid ? Colors.green : Colors.orange),
             ),
-            title: Text(item['subject'], style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text('${item['date']} • Cách phòng: ${item['distance']}', style: const TextStyle(fontSize: 12)),
+            title: Text(item['courseName'] ?? 'Không rõ', style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text('$dateFormatted • Phòng: ${item['room'] ?? '-'}', style: const TextStyle(fontSize: 12)),
             trailing: Chip(
-              label: Text(item['status'], style: TextStyle(color: isValid ? Colors.green.shade900 : Colors.orange.shade900, fontSize: 11, fontWeight: FontWeight.bold)),
+              label: Text(statusText, style: TextStyle(color: isValid ? Colors.green.shade900 : Colors.orange.shade900, fontSize: 11, fontWeight: FontWeight.bold)),
               backgroundColor: isValid ? Colors.green.shade100 : Colors.orange.shade100,
             ),
           ),

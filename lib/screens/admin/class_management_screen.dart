@@ -73,7 +73,12 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                   'credits': int.tryParse(creditsCtrl.text) ?? 3,
                 });
               } else {
-                // UPDATE (Tùy chọn backend có hay chưa, tạm mock)
+                // UPDATE
+                await ApiService.put('${ApiConstants.courses}/${currentClass['id']}', {
+                  'code': codeCtrl.text,
+                  'name': nameCtrl.text,
+                  'credits': int.tryParse(creditsCtrl.text) ?? 3,
+                });
               }
 
               Navigator.pop(ctx);
@@ -89,11 +94,18 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     );
   }
 
-  void _deleteClass(int index) {
-    setState(() {
-      courses.removeAt(index);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã xóa (Mock)')));
+  Future<void> _deleteClass(int id) async {
+    try {
+      final response = await ApiService.delete('${ApiConstants.courses}/$id');
+      if (response.statusCode == 200) {
+        _fetchCourses();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã xóa thành công')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: Không thể xóa môn học (Cần xóa các buổi học trước)')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi kết nối')));
+    }
   }
 
   @override
@@ -130,7 +142,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteClass(i),
+                    onPressed: () => _deleteClass(item['id']),
                   ),
                 ],
               ),

@@ -20,5 +20,6 @@ class ApiConstants {
 
   // Attendance (Student & Teacher)
   static const String scanQr = '$baseUrl/attendance/scan-qr';
+  static const String myHistory = '$baseUrl/students/me/attendance';
   static String sessionAttendance(int id) => '$baseUrl/attendance/session/$id';
 }

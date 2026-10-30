@@ -45,4 +45,23 @@ class ApiService {
       body: jsonEncode(body),
     );
   }
+
+  // Helper HTTP PUT
+  static Future<http.Response> put(String url, Map<String, dynamic> body) async {
+    final headers = await getAuthHeaders();
+    return await http.put(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+  }
+
+  // Helper HTTP DELETE
+  static Future<http.Response> delete(String url) async {
+    final headers = await getAuthHeaders();
+    return await http.delete(
+      Uri.parse(url),
+      headers: headers,
+    );
+  }
 }
