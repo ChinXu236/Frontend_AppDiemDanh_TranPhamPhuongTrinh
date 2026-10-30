@@ -1,58 +1,48 @@
-import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Đổi thành false khi bạn cùng nhóm đã deploy xong API thật
-  static const bool isMock = false;
-
-  // 1. Giả lập đăng nhập & gửi OTP
-  static Future<Map<String, dynamic>> login(String username, String password) async {
-    if (isMock) {
-      await Future.delayed(const Duration(milliseconds: 800)); // Giả lập độ trễ mạng
-      if (username.isNotEmpty && password.isNotEmpty) {
-        return {'success': true, 'userId': 'USR_12345', 'message': 'OTP đã gửi về email'};
-      }
-      return {'success': false, 'message': 'Vui lòng nhập đầy đủ thông tin'};
-    }
-    // TODO: Chỗ gọi http.post thật tới backend online
-    return {};
+  // Lưu Access Token
+  static Future<void> saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('jwt_token', token);
   }
 
-  // 2. Giả lập xác thực OTP & Trả về Role
-  static Future<Map<String, dynamic>> verifyOtp(String userId, String otp) async {
-    if (isMock) {
-      await Future.delayed(const Duration(milliseconds: 600));
-
-      // Phân quyền giả lập theo mã OTP bạn nhập để test cả 3 giao diện:
-      // Nhập 111111 -> Ra Admin
-      // Nhập 222222 -> Ra Teacher (Giáo viên)
-      // Nhập số khác -> Ra Student (Sinh viên)
-      String role = 'student';
-      if (otp == '111111') role = 'admin';
-      if (otp == '222222') role = 'teacher';
-
-      return {
-        'success': true,
-        'token': 'mock_jwt_token_xyz',
-        'role': role,
-        'name': 'Trần Phạm Phương Trinh'
-      };
-    }
-    return {};
+  // Lấy Access Token
+  static Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('jwt_token');
   }
 
-  // 3. Giả lập sinh viên Điểm danh (GPS + QR)
-  static Future<Map<String, dynamic>> checkIn({
-    required String classId,
-    required double lat,
-    required double lon,
-  }) async {
-    if (isMock) {
-      await Future.delayed(const Duration(milliseconds: 700));
-      return {
-        'success': true,
-        'message': 'Điểm danh thành công! Khoảng cách hợp lệ: 14m',
-      };
-    }
-    return {};
+  // Xóa Token (Đăng xuất)
+  static Future<void> clearToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('jwt_token');
+  }
+
+  // Tạo Header tự động đính kèm Token
+  static Future<Map<String, String>> getAuthHeaders() async {
+    final token = await getToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  // Helper HTTP GET
+  static Future<http.Response> get(String url) async {
+    final headers = await getAuthHeaders();
+    return await http.get(Uri.parse(url), headers: headers);
+  }
+
+  // Helper HTTP POST
+  static Future<http.Response> post(String url, Map<String, dynamic> body) async {
+    final headers = await getAuthHeaders();
+    return await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(body),
+    );
   }
 }

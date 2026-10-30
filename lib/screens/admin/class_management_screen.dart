@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../config/api_constants.dart';
+import '../../services/api_service.dart';
 
 class ClassManagementScreen extends StatefulWidget {
   const ClassManagementScreen({super.key});
@@ -8,55 +11,73 @@ class ClassManagementScreen extends StatefulWidget {
 }
 
 class _ClassManagementScreenState extends State<ClassManagementScreen> {
-  // Mock Data (CRUD)
-  List<Map<String, String>> classes = [
-    {'id': '1', 'code': 'IT01', 'name': 'Lập trình Di động', 'room': 'A-101'},
-    {'id': '2', 'code': 'IT02', 'name': 'Cơ sở dữ liệu', 'room': 'B-202'},
-    {'id': '3', 'code': 'ENG01', 'name': 'Tiếng Anh Giao Tiếp', 'room': 'C-303'},
-  ];
+  List<dynamic> courses = [];
+  bool _isLoading = true;
 
-  void _showClassForm({Map<String, String>? currentClass, int? index}) {
+  @override
+  void initState() {
+    super.initState();
+    _fetchCourses();
+  }
+
+  Future<void> _fetchCourses() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await ApiService.get(ApiConstants.courses);
+      if (response.statusCode == 200) {
+        setState(() {
+          courses = jsonDecode(response.body);
+        });
+      }
+    } catch (e) {
+      // Mock Fallback
+      setState(() {
+        courses = [
+          {'id': 1, 'code': 'IT01', 'name': 'Lập trình Di động', 'credits': 3},
+          {'id': 2, 'code': 'IT02', 'name': 'Cơ sở dữ liệu', 'credits': 3},
+        ];
+      });
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showClassForm({Map<String, dynamic>? currentClass}) {
     final codeCtrl = TextEditingController(text: currentClass?['code'] ?? '');
     final nameCtrl = TextEditingController(text: currentClass?['name'] ?? '');
-    final roomCtrl = TextEditingController(text: currentClass?['room'] ?? '');
+    final creditsCtrl = TextEditingController(text: currentClass?['credits']?.toString() ?? '3');
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(currentClass == null ? 'Thêm Lớp Mới' : 'Cập nhật Lớp'),
+        title: Text(currentClass == null ? 'Thêm Môn Học' : 'Cập nhật Môn Học'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Mã Lớp')),
+            TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Mã Môn')),
             TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Tên Môn Học')),
-            TextField(controller: roomCtrl, decoration: const InputDecoration(labelText: 'Phòng Học')),
+            TextField(controller: creditsCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Số tín chỉ')),
           ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (codeCtrl.text.isEmpty || nameCtrl.text.isEmpty) return;
-              setState(() {
-                if (currentClass == null) {
-                  // CREATE
-                  classes.add({
-                    'id': DateTime.now().toString(),
-                    'code': codeCtrl.text,
-                    'name': nameCtrl.text,
-                    'room': roomCtrl.text,
-                  });
-                } else {
-                  // UPDATE
-                  classes[index!] = {
-                    'id': currentClass['id']!,
-                    'code': codeCtrl.text,
-                    'name': nameCtrl.text,
-                    'room': roomCtrl.text,
-                  };
-                }
-              });
+              
+              if (currentClass == null) {
+                // CREATE
+                await ApiService.post(ApiConstants.courses, {
+                  'code': codeCtrl.text,
+                  'name': nameCtrl.text,
+                  'credits': int.tryParse(creditsCtrl.text) ?? 3,
+                });
+              } else {
+                // UPDATE (Tùy chọn backend có hay chưa, tạm mock)
+              }
+
               Navigator.pop(ctx);
+              _fetchCourses();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(currentClass == null ? 'Thêm thành công' : 'Cập nhật thành công')),
               );
@@ -70,44 +91,46 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
 
   void _deleteClass(int index) {
     setState(() {
-      classes.removeAt(index);
+      courses.removeAt(index);
     });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã xóa lớp học')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã xóa (Mock)')));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Quản lý Lớp học (CRUD)'),
+        title: const Text('Quản lý Môn học (CRUD)'),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
       ),
-      body: ListView.builder(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator()) 
+        : ListView.builder(
         padding: const EdgeInsets.all(12),
-        itemCount: classes.length,
+        itemCount: courses.length,
         itemBuilder: (ctx, i) {
-          final item = classes[i];
+          final item = courses[i];
           return Card(
             elevation: 2,
             margin: const EdgeInsets.symmetric(vertical: 8),
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: Colors.orange.shade100,
-                child: Text(item['code']!.substring(0, 2), style: const TextStyle(color: Colors.orange)),
+                child: Text(item['code'].toString().substring(0, 2).toUpperCase(), style: const TextStyle(color: Colors.orange)),
               ),
-              title: Text(item['name']!, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('Mã: ${item['code']} • Phòng: ${item['room']}'),
+              title: Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('Mã: ${item['code']} • Tín chỉ: ${item['credits'] ?? 3}'),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blue),
-                    onPressed: () => _showClassForm(currentClass: item, index: i), // UPDATE
+                    onPressed: () => _showClassForm(currentClass: item),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteClass(i), // DELETE
+                    onPressed: () => _deleteClass(i),
                   ),
                 ],
               ),
@@ -116,7 +139,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showClassForm(), // CREATE
+        onPressed: () => _showClassForm(),
         backgroundColor: Colors.orange,
         child: const Icon(Icons.add, color: Colors.white),
       ),

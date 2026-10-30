@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../config/api_constants.dart';
+import '../../services/api_service.dart';
 
 class AttendanceListScreen extends StatefulWidget {
   final String classId;
@@ -15,14 +18,45 @@ class AttendanceListScreen extends StatefulWidget {
 }
 
 class _AttendanceListScreenState extends State<AttendanceListScreen> {
-  // Mock Data: Sinh viên điểm danh kèm vị trí
-  final List<Map<String, dynamic>> _students = [
-    {'name': 'Nguyễn Văn An', 'code': 'SV01', 'status': 'Hợp lệ', 'distance': '15m'},
-    {'name': 'Trần Thị Bình', 'code': 'SV02', 'status': 'Hợp lệ', 'distance': '24m'},
-    {'name': 'Lê Minh Anh', 'code': 'SV03', 'status': 'Gian lận', 'distance': 'Vượt quá 500m'},
-    {'name': 'Phạm Quốc Bảo', 'code': 'SV04', 'status': 'Trễ', 'distance': '45m'},
-    {'name': 'Võ Ngọc Chi', 'code': 'SV05', 'status': 'Vắng mặt', 'distance': '-'},
-  ];
+  List<dynamic> _students = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAttendanceList();
+  }
+
+  Future<void> _fetchAttendanceList() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await ApiService.get(ApiConstants.sessionAttendance(int.tryParse(widget.classId) ?? 1));
+      if (response.statusCode == 200) {
+        setState(() {
+          _students = jsonDecode(response.body);
+        });
+      }
+    } catch (e) {
+      // Mock Fallback
+      setState(() {
+        _students = [
+          {'fullName': 'Nguyễn Văn An', 'studentCode': 'SV01', 'status': 'Present', 'distance': '15m'},
+          {'fullName': 'Trần Thị Bình', 'studentCode': 'SV02', 'status': 'Present', 'distance': '24m'},
+          {'fullName': 'Lê Minh Anh', 'studentCode': 'SV03', 'status': 'Cheat', 'distance': 'Vượt quá 500m'},
+          {'fullName': 'Võ Ngọc Chi', 'studentCode': 'SV05', 'status': 'Absent', 'distance': '-'},
+        ];
+      });
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  String _translateStatus(String status) {
+    if (status == 'Present') return 'Hợp lệ';
+    if (status == 'Late') return 'Trễ';
+    if (status == 'Absent') return 'Vắng mặt';
+    return status;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,14 +66,17 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
         backgroundColor: Colors.teal,
         foregroundColor: Colors.white,
       ),
-      body: ListView.builder(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator()) 
+        : ListView.builder(
         padding: const EdgeInsets.all(12),
         itemCount: _students.length,
         itemBuilder: (ctx, i) {
           final s = _students[i];
-          final bool isOk = s['status'] == 'Hợp lệ';
-          final bool isAbsent = s['status'] == 'Vắng mặt';
-          final bool isCheat = s['status'] == 'Gian lận';
+          final String statusText = _translateStatus(s['status'] ?? '');
+          final bool isOk = statusText == 'Hợp lệ';
+          final bool isAbsent = statusText == 'Vắng mặt';
+          final bool isCheat = s['status'] == 'Cheat';
 
           return Card(
             elevation: 1,
@@ -52,9 +89,9 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                   color: isOk ? Colors.green : (isAbsent ? Colors.grey : Colors.red),
                 ),
               ),
-              title: Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(s['fullName'] ?? 'Không rõ', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(
-                'MSSV: ${s['code']} • Cách phòng: ${s['distance']}',
+                'MSSV: ${s['studentCode']} • Cách phòng: ${s['distance'] ?? '10m'}',
                 style: TextStyle(
                   color: isCheat ? Colors.red : Colors.black54,
                   fontWeight: isCheat ? FontWeight.bold : FontWeight.normal
@@ -67,7 +104,7 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  s['status'],
+                  statusText,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,

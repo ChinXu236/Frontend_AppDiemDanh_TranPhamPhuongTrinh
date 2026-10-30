@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_constants.dart';
+import '../../providers/settings_provider.dart';
 import '../auth/login_screen.dart';
+import '../settings_screen.dart';
 import 'class_management_screen.dart';
 
 
@@ -86,9 +89,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bảng Quản Trị Hệ Thống'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Đăng xuất',

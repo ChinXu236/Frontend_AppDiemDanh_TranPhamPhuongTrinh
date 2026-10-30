@@ -1,5 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../config/api_constants.dart';
+import '../../services/api_service.dart';
+import '../../providers/settings_provider.dart';
 import '../auth/login_screen.dart';
+import '../settings_screen.dart';
 import 'scan_attendance_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
@@ -11,6 +17,36 @@ class StudentDashboard extends StatefulWidget {
 
 class _StudentDashboardState extends State<StudentDashboard> {
   int _currentIndex = 0;
+  String _fullName = 'Đang tải...';
+  String _email = 'Đang tải...';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfile();
+  }
+
+  Future<void> _fetchProfile() async {
+    try {
+      final response = await ApiService.get(ApiConstants.me);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _fullName = data['fullName'] ?? 'Không rõ';
+            _email = data['email'] ?? 'Không rõ';
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _fullName = 'Trần Phạm Phương Trinh';
+          _email = 'trinhtpp.238@hutech.edu.vn';
+        });
+      }
+    }
+  }
 
   final List<Map<String, dynamic>> _attendanceHistory = [
     {'subject': 'Lập trình Di động ', 'date': '29/10/2026 08:05', 'status': 'Hợp lệ', 'distance': '12m'},
@@ -118,6 +154,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   // Tab 3: Thông tin tài khoản Sinh viên
   Widget _buildProfileTab() {
+    final settings = Provider.of<SettingsProvider>(context);
+    final displayName = settings.customName.isNotEmpty ? settings.customName : _fullName;
+
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
@@ -127,32 +166,35 @@ class _StudentDashboardState extends State<StudentDashboard> {
             children: [
               CircleAvatar(
                 radius: 45,
-                backgroundColor: Colors.indigo,
                 child: Icon(Icons.school, size: 48, color: Colors.white),
               ),
               SizedBox(height: 12),
-              Text('Trần Phạm Phương Trinh', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              SizedBox(height: 4),
-              Text('Sinh viên Ngành Công nghệ Phần mềm', style: TextStyle(color: Colors.black54)),
             ],
           ),
+        ),
+        Center(
+          child: Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(height: 4),
+        const Center(
+          child: Text('Sinh viên', style: TextStyle(color: Colors.black54)),
         ),
         const SizedBox(height: 24),
         Card(
           elevation: 1,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Column(
-            children: const [
-              ListTile(
+            children: [
+              const ListTile(
                 leading: Icon(Icons.badge_outlined, color: Colors.indigo),
                 title: Text('Mã số sinh viên (MSSV)'),
-                trailing: Text('2380602336', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: Text('Đang cập nhật', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
-              Divider(height: 1),
+              const Divider(height: 1),
               ListTile(
-                leading: Icon(Icons.email_outlined, color: Colors.indigo),
-                title: Text('Email sinh viên'),
-                trailing: Text('trinhtpp.238@hutech.edu.vn', style: TextStyle(fontWeight: FontWeight.bold)),
+                leading: const Icon(Icons.email_outlined, color: Colors.indigo),
+                title: const Text('Email sinh viên'),
+                trailing: Text(_email, style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
               Divider(height: 1),
               ListTile(
@@ -198,8 +240,14 @@ class _StudentDashboardState extends State<StudentDashboard> {
     return Scaffold(
       appBar: AppBar(
         title: Text(titles[_currentIndex]),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          )
+        ],
       ),
       body: pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(

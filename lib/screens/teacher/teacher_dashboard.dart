@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../config/api_constants.dart';
+import '../../services/api_service.dart';
+import '../../providers/settings_provider.dart';
 import '../auth/login_screen.dart';
+import '../settings_screen.dart';
 import 'generate_qr_screen.dart';
 import 'noise_monitor_screen.dart';
-import 'attendance_list_screen.dart';
-
 import 'attendance_list_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
@@ -15,16 +19,62 @@ class TeacherDashboard extends StatefulWidget {
 
 class _TeacherDashboardState extends State<TeacherDashboard> {
   int _currentIndex = 0;
+  List<dynamic> _classes = [];
+  bool _isLoading = true;
+  String _fullName = 'Giảng viên';
+  String _email = '';
 
-  final List<Map<String, String>> _classes = [
-    {'id': 'L01', 'name': 'Lập trình Di động (Flutter)', 'room': 'B-302', 'students': '45'},
-    {'id': 'L02', 'name': 'Quản lý Dự án CNTT', 'room': 'A-105', 'students': '50'},
-    {'id': 'L03', 'name': 'CSDL Nâng cao', 'room': 'Lab-02', 'students': '38'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfile();
+    _fetchClasses();
+  }
+
+  Future<void> _fetchProfile() async {
+    try {
+      final response = await ApiService.get(ApiConstants.me);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _fullName = data['fullName'] ?? 'Giảng viên';
+            _email = data['email'] ?? '';
+          });
+        }
+      }
+    } catch (e) {
+      // Bỏ qua lỗi
+    }
+  }
+
+  Future<void> _fetchClasses() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await ApiService.get(ApiConstants.classSessions);
+      if (response.statusCode == 200) {
+        setState(() {
+          _classes = jsonDecode(response.body);
+        });
+      }
+    } catch (e) {
+      // Mock Fallback
+      setState(() {
+        _classes = [
+          {'id': 1, 'courseName': 'Lập trình Di động (Flutter)', 'room': 'B-302'},
+          {'id': 2, 'courseName': 'Quản lý Dự án CNTT', 'room': 'A-105'},
+        ];
+      });
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   // Tab 1: Danh sách lớp học
   Widget _buildClassListTab() {
-    return ListView(
+    return _isLoading 
+      ? const Center(child: CircularProgressIndicator()) 
+      : ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
         Card(
@@ -61,7 +111,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     );
   }
 
-  Widget _buildClassCard(Map<String, String> cls) {
+  Widget _buildClassCard(dynamic cls) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -75,7 +125,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(cls['name']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  child: Text(cls['courseName'] ?? 'Không rõ', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -85,7 +135,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ],
             ),
             const SizedBox(height: 6),
-            Text('Sĩ số: ${cls['students']} sinh viên', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            const Text('Trạng thái: Đang diễn ra', style: TextStyle(color: Colors.grey, fontSize: 13)),
             const Divider(height: 20),
             Row(
               children: [
@@ -96,8 +146,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => AttendanceListScreen(
-                            classId: cls['id']!,
-                            className: cls['name']!
+                            classId: cls['id'].toString(),
+                            className: cls['courseName'] ?? ''
                           )
                         ),
                       );
@@ -113,7 +163,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => TeacherQrScreen(classId: cls['id']!)),
+                        MaterialPageRoute(builder: (_) => TeacherQrScreen(classId: cls['id'].toString())),
                       );
                     },
                     icon: const Icon(Icons.qr_code, size: 16),
@@ -169,22 +219,24 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
   // Tab 3: Thông tin tài khoản Giảng viên
   Widget _buildProfileTab() {
+    final settings = Provider.of<SettingsProvider>(context);
+    final displayName = settings.customName.isNotEmpty ? settings.customName : _fullName;
+
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
         const SizedBox(height: 10),
-        const Center(
+        Center(
           child: Column(
             children: [
-              CircleAvatar(
+              const CircleAvatar(
                 radius: 45,
-                backgroundColor: Colors.teal,
                 child: Icon(Icons.person, size: 50, color: Colors.white),
               ),
-              SizedBox(height: 12),
-              Text('GV. Trần Phạm Phương Trinh', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              SizedBox(height: 4),
-              Text('Khoa Công Nghệ Thông Tin', style: TextStyle(color: Colors.black54)),
+              const SizedBox(height: 12),
+              Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              const Text('Khoa Công Nghệ Thông Tin', style: TextStyle(color: Colors.black54)),
             ],
           ),
         ),
@@ -193,20 +245,20 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           elevation: 1,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Column(
-            children: const [
-              ListTile(
+            children: [
+              const ListTile(
                 leading: Icon(Icons.badge_outlined, color: Colors.teal),
                 title: Text('Mã giảng viên'),
-                trailing: Text('GV2380602336', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: Text('Đang cập nhật', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
-              Divider(height: 1),
+              const Divider(height: 1),
               ListTile(
-                leading: Icon(Icons.email_outlined, color: Colors.teal),
-                title: Text('Email'),
-                trailing: Text('trinh.tpp@hutech.edu.vn', style: TextStyle(fontWeight: FontWeight.bold)),
+                leading: const Icon(Icons.email_outlined, color: Colors.teal),
+                title: const Text('Email'),
+                trailing: Text(_email, style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
-              Divider(height: 1),
-              ListTile(
+              const Divider(height: 1),
+              const ListTile(
                 leading: Icon(Icons.verified_user_outlined, color: Colors.teal),
                 title: Text('Vai trò'),
                 trailing: Text('Giảng viên bộ môn', style: TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
@@ -243,8 +295,14 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     return Scaffold(
       appBar: AppBar(
         title: Text(titles[_currentIndex]),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          )
+        ],
       ),
       body: pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
